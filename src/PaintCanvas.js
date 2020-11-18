@@ -4,80 +4,74 @@ import { useFrame, useThree } from "react-three-fiber";
 import { Voxels } from "./Voxels";
 import { MarkerContext, COLOUR_LIST, RGB_COLOUR_LIST } from "./App";
 import { MARKER_MODE, ERASER_MODE } from "./MarkerContextProvider";
-import { CubeTexture } from "three";
+import { SIZE_LIST } from "./Menu";
 import { VoxelOctree } from "./Octree";
 
 const tree = new VoxelOctree();
 
 export const PaintCanvas = () => {
   const { gl } = useThree();
+
   gl.setClearColor("#fff");
 
-  const [voxels, set] = React.useState([]);
   const rightController = useController("right");
 
   const [currentlyDrawing, setCurrentlyDrawing] = React.useState(false);
   const markerContext = React.useContext(MarkerContext);
   const [last, setLast] = React.useState([]);
+  const [nodes, setNodes] = React.useState([]);
 
-  const addVoxel = (voxel) => {
-    set((voxels) => {
-      return voxels.concat(voxel);
-    });
-  };
+  const squeezeStart = () => setCurrentlyDrawing(true);
+  const squeezeEnd = () => setCurrentlyDrawing(false);
+  const [squeezeStartTime, setSqueezeStartTime] = React.useState(0)
 
-  const squeezeStart = React.useCallback(() => setCurrentlyDrawing(true), [
-    rightController,
-    currentlyDrawing,
-    setCurrentlyDrawing,
-  ]);
-  const squeezeEnd = React.useCallback(() => setCurrentlyDrawing(false), [
-    rightController,
-    currentlyDrawing,
-    setCurrentlyDrawing,
-  ]);
+  const leftSqueezeStart = () => {
+    setSqueezeStartTime(Date.now())
+  }
+
+  const leftSqueezeEnd = () => {
+    const squeezedTime = (Date.now() - squeezeStartTime);
+    if (squeezedTime < 2000) {
+      markerContext.methods.setMode(
+        markerContext.properties.mode === MARKER_MODE ? ERASER_MODE : MARKER_MODE
+      );  
+    } else {
+      markerContext.methods.toggleMenuOpen()
+    }
+  }
 
   const leftSqueeze = React.useCallback(() => {
     markerContext.methods.setMode(
       markerContext.properties.mode === MARKER_MODE ? ERASER_MODE : MARKER_MODE
     );
-    /*    if (markerContext.colorIndex === COLOUR_LIST.length-1) {
-     markerContext.colorIndex = 0;
-    } else {
-      markerContext.methods.setMode(MARKER_MODE)
-      markerContext.update((ctx) => {
-        return { ...ctx, colorIndex: (ctx.colorIndex + 1) % COLOUR_LIST.length };
-      });
-    } */
   }, [markerContext]);
 
   useXREvent("squeezestart", squeezeStart, { handedness: "right" });
   useXREvent("squeezeend", squeezeEnd, { handedness: "right" });
-  useXREvent("squeeze", leftSqueeze, { handedness: "left" });
+
+  useXREvent("squeezestart", leftSqueezeStart, { handedness: "left" });
+  useXREvent("squeezeend", leftSqueezeEnd, { handedness: "left" });
+
+  const colorFromArray = (idx) => RGB_COLOUR_LIST[idx % RGB_COLOUR_LIST.length];
+  const sizeFromArray = (idx) => SIZE_LIST[idx % SIZE_LIST.length];
+
+  const addVoxelToCanvas = (id, position) => {
+    const color = colorFromArray(markerContext.properties.colorIndex);
+    const size = sizeFromArray(markerContext.properties.sizeIndex);
+
+    const nodes = tree.addNode({ position, id, color, size });
+    setNodes(nodes);
+  };
 
   const drawVoxelAtCurrentPosition = () => {
-    let id = Date.now();
-    let position = rightController.controller.position.toArray();
-
-    addVoxel({
-      position: rightController.controller.position.toArray(),
-      color:
-        RGB_COLOUR_LIST[
-          markerContext.properties.colorIndex % RGB_COLOUR_LIST.length
-        ],
-      voxel_id: id,
-    });
-
-    tree.addNode(position, id);
+    addVoxelToCanvas(Date.now(), rightController.controller.position.toArray());
   };
 
   const removeVoxelsAtCurrentPosition = () => {
-    const id_list = tree.nearbyNodes(
+    const nodes = tree.removeNearbyNodes(
       rightController.controller.position.toArray()
     );
-    set((voxels) =>
-      voxels.filter((voxel) => !id_list.includes(voxel.voxel_id))
-    );
+    setNodes(nodes);
   };
 
   useFrame(() => {
@@ -100,5 +94,5 @@ export const PaintCanvas = () => {
     }
   });
 
-  return <Voxels voxels={voxels} />;
+  return <Voxels voxels={nodes} />;
 };

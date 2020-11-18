@@ -3,7 +3,7 @@ import { COLOUR_LIST, MarkerContext } from "./App";
 import { useThree, useFrame } from "react-three-fiber";
 import { useController, Hover, Select } from "@react-three/xr";
 
-const SIZE_LIST = [0.01, 0.02, 0.05, 0.08]
+export const SIZE_LIST = [0.01, 0.02, 0.05, 0.08]
 
 const circleElements = (index, total, radius = 0.2) => {
   let theta = ((Math.PI * 2) / total) * index;
@@ -17,6 +17,7 @@ export const Menu = () => {
   const ref = React.useRef();
   const [sizeSelected, setSizeSelected] = React.useState(0);
   const [colorSelected, setColorSelected] = React.useState(0);
+
   const { gl, camera } = useThree();
   const [pos, set] = React.useState({ position: [], rotation: [] });
   const markerContext = React.useContext(MarkerContext);
@@ -33,43 +34,28 @@ export const Menu = () => {
   });
 
   if (!leftController) return null;
+  if (markerContext.properties.isMenuOpen !== true) return null;
+
+  let row = 0;
 
   return (
     <group ref={ref} position={pos.position} rotation={pos.rotation}>
-
-      {SIZE_LIST.map((size, idx) => {
-        const pos = circleElements(idx, SIZE_LIST.length, 0.4);
-
-        return (<Select onSelect={() => markerContext.methods.setSize(idx)}>
-            <Hover onChange={() => setSizeSelected(idx)}>
-              <mesh key={size} position={[(idx/10)-0.1, 0, 0.3]}>
-                <boxBufferGeometry
-                  args={sizeSelected === idx ? [size*1.1, size*1.1, size*1.1] : [size, size, size]}
-                />
-                <meshBasicMaterial
-                  transparent
-                  color={"black"}
-                  opacity={sizeSelected === idx ? 1.0 : 0.5}
-                />
-              </mesh>
-            </Hover>
-          </Select>)
-
-      })}
       {COLOUR_LIST.map((colour, idx) => {
+
         const pos = circleElements(idx, COLOUR_LIST.length);
+
+        if (idx % 5 === 0)
+          row++;
 
         return (
           <Select onSelect={() => markerContext.methods.setColor(idx)}>
             <Hover onChange={() => setColorSelected(idx)}>
-              <mesh key={colour} position={[pos[0], 0, pos[1]]}>
+              <mesh key={colour} position={[((idx % 5)*0.1), row/8, (markerContext.properties.colorIndex === idx) ? -0.05 : 0]}>
                 <boxBufferGeometry
-                  args={colorSelected === idx ? [0.15, 0.15, 0.15] : [0.1, 0.1, 0.1]}
+                  args={colorSelected === idx ? [0.1, 0.1, 0.1] : [0.08, 0.08, 0.08]}
                 />
                 <meshBasicMaterial
                   color={colour}
-                  transparent
-                  opacity={colorSelected === idx ? 1.0 : 0.5}
                 />
               </mesh>
             </Hover>
